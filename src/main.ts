@@ -5,8 +5,18 @@ import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = NestFactory.create(AppModule);
-  const instance = await app;
+  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
+  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not set');
+
+  console.log('PORT:', process.env.PORT);
+  console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+
+  const instance = await NestFactory.create(AppModule);
+
+  // Health check bypasses global prefix and auth guards — required by Railway
+  instance.getHttpAdapter().get('/health', (_req, res) => {
+    res.json({ status: 'ok' });
+  });
 
   // Allow up to 5 MB bodies so base64-encoded logo images fit
   instance.use(json({ limit: '5mb' }));
@@ -29,7 +39,8 @@ async function bootstrap() {
   );
 
   const port = process.env.PORT || 3000;
-  await instance.listen(port);
+  // '0.0.0.0' is required — Railway's load balancer cannot reach 127.0.0.1
+  await instance.listen(port, '0.0.0.0');
   console.log(`Server running on port ${port}`);
 }
 bootstrap();
