@@ -23,11 +23,17 @@ async function bootstrap() {
   instance.use(urlencoded({ extended: true, limit: '5mb' }));
 
   instance.setGlobalPrefix('api/v1');
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.WEBSITE_URL,
+    'https://frontend-alpha-two-92.vercel.app',
+    'https://tams-website.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:3005',
+  ].filter(Boolean) as string[];
+
   instance.enableCors({
-    origin: [
-      process.env.FRONTEND_URL,
-      process.env.WEBSITE_URL,
-    ].filter(Boolean) as string[],
+    origin: allowedOrigins,
     credentials: true,
   });
   instance.useGlobalPipes(
