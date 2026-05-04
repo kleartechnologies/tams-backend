@@ -28,7 +28,8 @@ async function bootstrap() {
     }),
   );
 
-  await instance.listen(process.env.PORT ?? 3002);
-  console.log(`TAMS API running on port ${process.env.PORT ?? 3002}`);
+  const port = process.env.PORT || 3000;
+  await instance.listen(port);
+  console.log(`Server running on port ${port}`);
 }
 bootstrap();
