@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum PackageType {
+  GROUP_TOUR
+  PRIVATE_TOUR
+  UMRAH
+  HAJJ
+}
+
+enum BookingStatus {
+  INQUIRY
+  QUOTED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  ONLINE_BANKING
+  CREDIT_CARD
+  CHEQUE
+}
+
+enum PaymentType {
+  DEPOSIT
+  INSTALMENT
+  FULL_PAYMENT
+  REFUND
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+enum TravelerType {
+  ADULT
+  CHILD
+}
+
+// ─── MULTI-TENANT CORE ───────────────────────────────────────────────────────
+
+model Agency {
+  id                     String         @id @default(uuid())
+  name                   String
+  plan                   String         @default("FREE")
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?
+  users                  User[]
+  customers              Customer[]
+  packages               Package[]
+  bookings               Booking[]
+  payments               Payment[]
+  settings               AgencySetting?
+  createdAt              DateTime       @default(now())
+
+  @@map("agencies")
+}
+
+model User {
+  id        String   @id  // Supabase auth.uid — provided externally
+  email     String   @unique
+  agencyId  String?
+  agency    Agency?  @relation(fields: [agencyId], references: [id])
+  role      UserRole @default(ADMIN)
+  createdAt DateTime @default(now())
+
+  @@index([agencyId])
+  @@map("users")
+}
+
+// ─── MODELS ──────────────────────────────────────────────────────────────────
+
+model Customer {
+  id             String           @id @default(cuid())
+  agencyId       String?
+  agency         Agency?          @relation(fields: [agencyId], references: [id])
+  fullName       String
+  icNumber       String?
+  passportNumber String?
+  nationality    String           @default("Malaysian")
+  dateOfBirth    DateTime?
+  phone          String
+  email          String?
+  address        String?
+  notes          String?
+  bookings       Booking[]
+  traveledIn     BookingTraveler[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+
+  @@index([agencyId])
+  @@index([fullName])
+  @@index([phone])
+  @@index([deletedAt])
+  @@map("customers")
+}
+
+model Package {
+  id              String             @id @default(cuid())
+  agencyId        String?
+  agency          Agency?            @relation(fields: [agencyId], references: [id])
+  name            String
+  type            PackageType
+  destination     String
+  days            Int                @default(1)
+  nights          Int                @default(0)
+  adultPrice      Decimal            @db.Decimal(10, 2)
+  childPrice      Decimal            @db.Decimal(10, 2)
+  isSSTApplicable Boolean            @default(false)
+  sstRate         Int                @default(6)
+  maxCapacity     Int?
+  description     String?
+  inclusions      Json?
+  exclusions      String?
+  bookings        Booking[]
+  departures      PackageDeparture[]
+  itinerary       PackageItinerary[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([agencyId])
+  @@map("packages")
+}
+
+model PackageDeparture {
+  id            String   @id @default(cuid())
+  packageId     String
+  package       Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  departureDate DateTime
+  quota         Int
+  bookedCount   Int      @default(0)
+  bookings      Booking[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([packageId])
+  @@map("package_departures")
+}
+
+model Booking {
+  id              String           @id @default(cuid())
+  agencyId        String?
+  agency          Agency?          @relation(fields: [agencyId], references: [id])
+  bookingNumber   String?
+  customerId      String
+  customer        Customer         @relation(fields: [customerId], references: [id])
+  packageId       String
+  package         Package          @relation(fields: [packageId], references: [id])
+  departureId     String?
+  departure       PackageDeparture? @relation(fields: [departureId], references: [id])
+  status          BookingStatus    @default(INQUIRY)
+  bookingDate     DateTime         @default(now())
+  departureDate   DateTime?
+  totalPax        Int              @default(0)
+  specialRequests String?
+  subtotal        Decimal          @db.Decimal(10, 2) @default(0)
+  sstRate         Int              @default(0)
+  sstAmount       Decimal          @db.Decimal(10, 2) @default(0)
+  totalAmount     Decimal          @db.Decimal(10, 2)
+  totalPaid       Decimal          @db.Decimal(10, 2) @default(0)
+  balanceDue      Decimal          @db.Decimal(10, 2) @default(0)
+  travelers       BookingTraveler[]
+  payments        Payment[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+
+  @@index([agencyId])
+  @@index([customerId, status])
+  @@index([packageId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("bookings")
+}
+
+model BookingTraveler {
+  id             String       @id @default(cuid())
+  bookingId      String
+  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customerId     String?
+  customer       Customer?    @relation(fields: [customerId], references: [id])
+  travelerType   TravelerType @default(ADULT)
+  fullName       String
+  icNumber       String?
+  passportNumber String?
+  nationality    String?
+  dateOfBirth    DateTime?
+  phone          String?
+  passportExpiry DateTime?
+  mahramRelation String?
+  roomType       String?
+  seatNumber     String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("booking_travelers")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  agencyId        String?
+  agency          Agency?       @relation(fields: [agencyId], references: [id])
+  bookingId       String
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount          Decimal       @db.Decimal(10, 2)
+  paymentType     PaymentType
+  paymentMethod   PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  paymentDate     DateTime
+  referenceNumber String?
+  receiptNumber   String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([agencyId])
+  @@map("payments")
+}
+
+model PackageItinerary {
+  id          String   @id @default(cuid())
+  packageId   String
+  package     Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  dayNumber   Int
+  title       String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([packageId, dayNumber])
+  @@index([packageId])
+  @@map("package_itineraries")
+}
+
+model AgencySetting {
+  id                 Int      @id @default(autoincrement())
+  agencyId           String?  @unique
+  agency             Agency?  @relation(fields: [agencyId], references: [id])
+  agencyName         String   @default("TAMS")
+  agencyTag          String   @default("Travel Agency MS")
+  logoUrl            String?
+  address            String?
+  phone              String?
+  email              String?
+  primaryColor       String   @default("#1F4E4A")
+  termsAndConditions String?
+  refundPolicy       String?
+  bankName           String?
+  bankAccountNumber  String?
+  bankAccountHolder  String?
+  bankNotes          String?
+  motacLicenseNumber String?
+  motacExpiryDate    DateTime?
+  pdfTemplate        String   @default("modern")
+  sstEnabled         Boolean  @default(false)
+  defaultSstRate     Int      @default(6)
+  updatedAt          DateTime @updatedAt
+
+  @@map("agency_settings")
+}
