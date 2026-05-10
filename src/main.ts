@@ -11,7 +11,7 @@ async function bootstrap() {
   console.log('PORT:', process.env.PORT);
   console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
 
-  const instance = await NestFactory.create(AppModule);
+  const instance = await NestFactory.create(AppModule, { rawBody: true });
 
   // Health check bypasses global prefix and auth guards — required by Railway
   instance.getHttpAdapter().get('/health', (_req, res) => {
