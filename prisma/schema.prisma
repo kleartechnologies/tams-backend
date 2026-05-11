@@ -75,13 +75,14 @@ model Agency {
 }
 
 model User {
-  id        String   @id  // Supabase auth.uid — set server-side via admin API
-  email     String   @unique
-  fullName  String?
-  agencyId  String?
-  agency    Agency?  @relation(fields: [agencyId], references: [id])
-  role      UserRole @default(ADMIN)
-  createdAt DateTime @default(now())
+  id                 String   @id  // Supabase auth.uid — set server-side via admin API
+  email              String   @unique
+  fullName           String?
+  agencyId           String?
+  agency             Agency?  @relation(fields: [agencyId], references: [id])
+  role               UserRole @default(ADMIN)
+  createdAt          DateTime @default(now())
+  onboardingProgress Json     @default("{}")
 
   @@index([agencyId])
   @@map("users")

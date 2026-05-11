@@ -14,6 +14,7 @@ import { PdfModule } from './pdf/pdf.module';
 import { PlansModule } from './plans/plans.module';
 import { TeamModule } from './team/team.module';
 import { StripeModule } from './stripe/stripe.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RequireAgencyGuard } from './auth/require-agency.guard';
 
@@ -33,6 +34,7 @@ import { RequireAgencyGuard } from './auth/require-agency.guard';
     PlansModule,
     TeamModule,
     StripeModule,
+    OnboardingModule,
   ],
   providers: [
     // Order matters: JWT runs first (sets request.user), then agency check

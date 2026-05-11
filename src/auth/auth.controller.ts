@@ -38,6 +38,7 @@ export class AuthController {
       role: profile.role,
       agencyId: profile.agencyId,
       agency: profile.agency,
+      onboardingProgress: profile.onboardingProgress ?? {},
     };
   }
 }
