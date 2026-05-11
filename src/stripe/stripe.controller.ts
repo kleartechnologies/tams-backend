@@ -35,6 +35,11 @@ export class StripeController {
     return this.stripeService.getSubscription(user.agencyId!);
   }
 
+  @Post('sync')
+  syncSubscription(@CurrentUser() user: AuthUser) {
+    return this.stripeService.syncSubscription(user.agencyId!);
+  }
+
   @Public()
   @Post('webhook')
   handleWebhook(
