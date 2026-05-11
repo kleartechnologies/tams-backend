@@ -45,6 +45,7 @@ enum PaymentStatus {
 }
 
 enum UserRole {
+  OWNER
   ADMIN
   STAFF
 }
@@ -74,8 +75,9 @@ model Agency {
 }
 
 model User {
-  id        String   @id  // Supabase auth.uid — provided externally
+  id        String   @id  // Supabase auth.uid — set server-side via admin API
   email     String   @unique
+  fullName  String?
   agencyId  String?
   agency    Agency?  @relation(fields: [agencyId], references: [id])
   role      UserRole @default(ADMIN)
@@ -188,6 +190,9 @@ model Booking {
   @@index([packageId])
   @@index([status])
   @@index([deletedAt])
+  @@index([agencyId, createdAt])
+  @@index([departureId])
+  @@index([agencyId, balanceDue])
   @@map("bookings")
 }
 
@@ -233,6 +238,8 @@ model Payment {
   updatedAt       DateTime      @updatedAt
 
   @@index([agencyId])
+  @@index([status, paymentDate])
+  @@index([bookingId, status])
   @@map("payments")
 }
 

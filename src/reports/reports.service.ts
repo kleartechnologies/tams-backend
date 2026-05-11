@@ -79,26 +79,23 @@ export class ReportsService {
   async getRevenueTrend(agencyId: string, from?: string, to?: string) {
     const { fromDate, toDate } = this.parseDateRange(from, to);
 
-    const payments = await this.prisma.payment.findMany({
-      where: {
-        agencyId,
-        status: 'VERIFIED',
-        paymentDate: { gte: fromDate, lte: toDate },
-      },
-      select: { paymentDate: true, amount: true },
-      orderBy: { paymentDate: 'asc' },
-    });
+    const rows = await this.prisma.$queryRaw<{ date: string; amount: number }[]>`
+      SELECT
+        DATE_TRUNC('day', "paymentDate")::date::text AS date,
+        SUM(amount)::float                           AS amount
+      FROM payments
+      WHERE "agencyId" = ${agencyId}
+        AND status      = 'VERIFIED'
+        AND "paymentDate" >= ${fromDate}
+        AND "paymentDate" <= ${toDate}
+      GROUP BY 1
+      ORDER BY 1
+    `;
 
-    const byDate: Record<string, number> = {};
-    for (const p of payments) {
-      const key = p.paymentDate.toISOString().split('T')[0];
-      byDate[key] = (byDate[key] ?? 0) + Number(p.amount);
-    }
-
+    const byDate = Object.fromEntries(rows.map((r) => [r.date, r.amount]));
     const result: { date: string; amount: number }[] = [];
     const cur = new Date(fromDate);
-    const end = new Date(toDate);
-    while (cur <= end) {
+    while (cur <= toDate) {
       const key = cur.toISOString().split('T')[0];
       result.push({ date: key, amount: byDate[key] ?? 0 });
       cur.setDate(cur.getDate() + 1);
@@ -109,32 +106,34 @@ export class ReportsService {
   async getTopPackages(agencyId: string, from?: string, to?: string) {
     const { fromDate, toDate } = this.parseDateRange(from, to);
 
-    const bookings = await this.prisma.booking.findMany({
+    const groups = await this.prisma.booking.groupBy({
+      by: ['packageId'],
       where: {
         agencyId,
         createdAt: { gte: fromDate, lte: toDate },
         status: { notIn: ['CANCELLED'] },
       },
-      select: {
-        packageId: true,
-        totalAmount: true,
-        package: { select: { name: true } },
-      },
+      _count: { id: true },
+      _sum: { totalAmount: true },
+      orderBy: { _sum: { totalAmount: 'desc' } },
+      take: 10,
     });
 
-    const agg: Record<string, { name: string; bookings: number; revenue: number }> = {};
-    for (const b of bookings) {
-      if (!agg[b.packageId]) {
-        agg[b.packageId] = { name: b.package.name, bookings: 0, revenue: 0 };
-      }
-      agg[b.packageId].bookings++;
-      agg[b.packageId].revenue += Number(b.totalAmount);
-    }
+    if (groups.length === 0) return [];
 
-    return Object.entries(agg)
-      .map(([packageId, d]) => ({ packageId, ...d }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
+    const pkgIds = groups.map((g) => g.packageId);
+    const packages = await this.prisma.package.findMany({
+      where: { id: { in: pkgIds } },
+      select: { id: true, name: true },
+    });
+    const nameMap = new Map(packages.map((p) => [p.id, p.name]));
+
+    return groups.map((g) => ({
+      packageId: g.packageId,
+      name: nameMap.get(g.packageId) ?? 'Unknown',
+      bookings: g._count.id,
+      revenue: Number(g._sum.totalAmount ?? 0),
+    }));
   }
 
   async getOutstanding(agencyId: string) {
@@ -171,6 +170,7 @@ export class ReportsService {
         status: { notIn: ['CANCELLED'] },
       },
       orderBy: { departureDate: 'asc' },
+      take: 100,
       include: {
         customer: { select: { id: true, fullName: true, phone: true } },
         package: { select: { id: true, name: true, type: true, destination: true } },
@@ -183,6 +183,7 @@ export class ReportsService {
   async getBookings(agencyId: string, from?: string, to?: string) {
     const { fromDate, toDate } = this.parseDateRange(from, to);
 
+    // 500 is a safe upper bound for CSV/Excel exports
     const bookings = await this.prisma.booking.findMany({
       where: {
         agencyId,
@@ -193,6 +194,7 @@ export class ReportsService {
         package: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     return bookings.map((b) => ({

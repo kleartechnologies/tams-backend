@@ -17,6 +17,19 @@ class ReportsQueryDto {
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
+  @Get('dashboard')
+  async getDashboard(@CurrentUser() user: AuthUser, @Query() query: ReportsQueryDto) {
+    const agencyId = user.agencyId!;
+    // Trend is fetched separately by the client with a 6-month window
+    const [summary, upcoming, outstanding, topPackages] = await Promise.all([
+      this.reportsService.getSummary(agencyId, query.from, query.to),
+      this.reportsService.getUpcoming(agencyId),
+      this.reportsService.getOutstanding(agencyId),
+      this.reportsService.getTopPackages(agencyId, query.from, query.to),
+    ]);
+    return { summary, upcoming, outstanding, topPackages };
+  }
+
   @Get('summary')
   getSummary(@CurrentUser() user: AuthUser, @Query() query: ReportsQueryDto) {
     return this.reportsService.getSummary(user.agencyId!, query.from, query.to);

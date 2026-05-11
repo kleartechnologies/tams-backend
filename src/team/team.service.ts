@@ -1,26 +1,32 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 import { PLANS, PlanKey } from '../plans/plans';
 import { InviteUserDto } from './dto/invite-user.dto';
 
 @Injectable()
 export class TeamService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly supabaseAdmin: SupabaseAdminService,
+  ) {}
 
   async listUsers(agencyId: string) {
     return this.prisma.user.findMany({
       where: { agencyId },
-      select: { id: true, email: true, role: true, createdAt: true },
+      select: { id: true, email: true, fullName: true, role: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
   }
 
   async inviteUser(agencyId: string, requesterId: string, dto: InviteUserDto) {
+    const email = dto.email.trim().toLowerCase();
+
     const agency = await this.prisma.agency.findUnique({
       where: { id: agencyId },
       select: { plan: true },
@@ -37,20 +43,39 @@ export class TeamService {
       );
     }
 
-    const existing = await this.prisma.user.findUnique({ where: { id: dto.supabaseUserId } });
-    if (existing) {
-      throw new BadRequestException('This user already exists in the system.');
+    const existingInDb = await this.prisma.user.findUnique({ where: { email } });
+    if (existingInDb) {
+      throw new BadRequestException('A user with this email already exists.');
     }
 
-    return this.prisma.user.create({
-      data: {
-        id: dto.supabaseUserId,
-        email: dto.email,
-        agencyId,
-        role: dto.role,
-      },
-      select: { id: true, email: true, role: true, createdAt: true },
+    const { data, error } = await this.supabaseAdmin.createAuthUser({
+      email,
+      password: dto.password,
+      email_confirm: true,
+      user_metadata: { full_name: dto.fullName.trim() },
     });
+
+    if (error || !data.user) {
+      throw new BadRequestException(error?.message ?? 'Failed to create auth user.');
+    }
+
+    const supabaseUserId = data.user.id;
+
+    try {
+      return await this.prisma.user.create({
+        data: {
+          id: supabaseUserId,
+          email,
+          fullName: dto.fullName.trim(),
+          agencyId,
+          role: dto.role,
+        },
+        select: { id: true, email: true, fullName: true, role: true, createdAt: true },
+      });
+    } catch {
+      await this.supabaseAdmin.deleteAuthUser(supabaseUserId);
+      throw new InternalServerErrorException('Failed to save team member. Please try again.');
+    }
   }
 
   async removeUser(agencyId: string, requesterId: string, targetUserId: string) {

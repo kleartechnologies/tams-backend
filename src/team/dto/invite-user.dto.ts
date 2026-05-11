@@ -1,6 +1,9 @@
-import { IsEmail, IsIn, IsString } from 'class-validator';
+import { IsEmail, IsIn, IsString, MinLength } from 'class-validator';
 
 export class InviteUserDto {
+  @IsString()
+  fullName: string;
+
   @IsEmail()
   email: string;
 
@@ -9,5 +12,6 @@ export class InviteUserDto {
   role: 'ADMIN' | 'STAFF';
 
   @IsString()
-  supabaseUserId: string;
+  @MinLength(6)
+  password: string;
 }

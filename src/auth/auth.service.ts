@@ -29,7 +29,7 @@ export class AuthService {
         id: userId,
         email,
         agencyId: agency.id,
-        role: 'ADMIN',
+        role: 'OWNER',
       },
     });
 
