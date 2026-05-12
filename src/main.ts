@@ -26,10 +26,6 @@ async function bootstrap() {
   const allowedOrigins = [
     process.env.FRONTEND_URL,
     process.env.WEBSITE_URL,
-    'https://frontend-alpha-two-92.vercel.app',
-    'https://tams-website.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:3005',
   ].filter(Boolean) as string[];
 
   instance.enableCors({
